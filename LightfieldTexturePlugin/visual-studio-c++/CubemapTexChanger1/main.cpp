@@ -19,6 +19,16 @@
 
 
 // --------------------------------------------------------------------------
+// Include stuff for CUDA
+
+#include <dynlink_d3d11.h>
+#include <cuda_runtime_api.h>
+#include <cuda_d3d11_interop.h>
+#include <helper_cuda.h>
+#include <helper_functions.h>    // includes cuda.h and cuda_runtime_api.h
+
+
+// --------------------------------------------------------------------------
 // Helper utilities
 
 
@@ -251,7 +261,8 @@ static void DoRendering()
 			D3D11_TEXTURE2D_DESC desc;
 			d3dtex->GetDesc(&desc);
 
-			DebugInUnity("Test string from plugin.");
+			cuda_test();
+
 
 			unsigned char* data = new unsigned char[desc.Width*desc.Height * 4];
 			//FillTextureFromCode1(desc.Width, desc.Height, desc.Width * 4, data);

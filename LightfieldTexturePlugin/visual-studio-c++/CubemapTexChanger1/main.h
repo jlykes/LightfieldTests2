@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Unity/IUnityInterface.h"
+#include <string>
 
 
 // Which platform we are on?
@@ -59,3 +60,9 @@ static void FillTextureFromCode1(int width, int height, int stride, unsigned cha
 static int roundDown(int number, int multiple);
 static int calcColorIndex();
 static void DecideColor1(unsigned char* ptr);
+void DebugInUnity(std::string message);
+
+extern "C"
+{
+	void cuda_test();
+}
