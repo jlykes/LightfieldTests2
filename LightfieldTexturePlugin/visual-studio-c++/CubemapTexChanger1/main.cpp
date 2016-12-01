@@ -31,18 +31,6 @@
 // --------------------------------------------------------------------------
 // Helper utilities
 
-
-// Prints a string
-//static void DebugLog(const char* str)
-//{
-//#if UNITY_WIN
-//	OutputDebugStringA (str);
-//#else
-//	printf("%s", str);
-//#endif
-//}
-
-
 //Setup for making Debug.Log in Unity callable from here
 typedef void(__stdcall * DebugCallback) (const char *);
 DebugCallback gDebugCallback;
@@ -63,6 +51,31 @@ void DebugInUnity(std::string message)
 #endif
 
 
+void ProcessCudaError(std::string prefix)
+{
+	cudaError_t error = cudaSuccess;
+	error = cudaGetLastError();
+	if (error != cudaSuccess)
+	{
+		DebugInUnity(prefix + std::to_string(error));
+	}
+
+}
+
+// --------------------------------------------------------------------------
+// Texture struct
+
+// Data structure for cube texture shared between DX10 and CUDA
+struct
+{
+	ID3D11Texture2D         *pTexture;
+	ID3D11ShaderResourceView *pSRView;
+	cudaGraphicsResource    *cudaResource;
+	void                    *cudaLinearMemory;
+	size_t                  pitch;
+	int                     size;
+} g_texture_cube;
+
 
 // --------------------------------------------------------------------------
 // SetTimeFromUnity, an example function we export which is called by one of the scripts.
@@ -73,18 +86,6 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetTimeFromUnity(floa
 
 
 
-// --------------------------------------------------------------------------
-// SetTextureFromUnity, an example function we export which is called by one of the scripts.
-
-static void* g_TexturePointer = NULL;
-
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetTextureFromUnity(void* texturePtr)
-{
-	// A script calls this at initialization time; just remember the texture pointer here.
-	// Will update texture pixels each frame from the plugin rendering event (texture update
-	// needs to happen on the rendering thread).
-	g_TexturePointer = texturePtr;
-}
 
 
 // --------------------------------------------------------------------------
@@ -123,6 +124,9 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload()
 }
 
 
+// --------------------------------------------------------------------------
+// Graphics pointer
+static void* g_TexturePointer = NULL;
 
 // --------------------------------------------------------------------------
 // GraphicsDeviceEvent
@@ -225,6 +229,107 @@ static void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType)
 #endif // #if SUPPORT_D3D11
 
 
+// --------------------------------------------------------------------------
+// SetTextureFromUnity, an example function we export which is called by one of the scripts.
+
+
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetTextureFromUnity(void* texturePtr)
+{
+	// A script calls this at initialization time; just remember the texture pointer here.
+	// Will update texture pixels each frame from the plugin rendering event (texture update
+	// needs to happen on the rendering thread).
+
+	//g_TexturePointer = texturePtr;
+
+	g_texture_cube.pTexture = (ID3D11Texture2D*)texturePtr;
+	D3D11_TEXTURE2D_DESC desc;
+	g_texture_cube.pTexture->GetDesc(&desc);
+	g_texture_cube.size = desc.Width;
+
+	////Create shader resource view
+	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc;
+	ZeroMemory(&SRVDesc, sizeof(SRVDesc));
+	SRVDesc.Format = desc.Format;
+	SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
+	SRVDesc.TextureCube.MipLevels = desc.MipLevels;
+	SRVDesc.TextureCube.MostDetailedMip = 0;
+
+	if (FAILED(g_D3D11Device->CreateShaderResourceView(g_texture_cube.pTexture, &SRVDesc, &g_texture_cube.pSRView)))
+	{
+	}
+
+	// Puts pTexture into cudaResource
+	cudaGraphicsD3D11RegisterResource(&g_texture_cube.cudaResource, g_texture_cube.pTexture, cudaGraphicsRegisterFlagsNone);
+	ProcessCudaError("cudaGraphicsD3D11RegisterResource (g_texture_cube) failed: ");
+
+	// Create the buffer. pixel fmt is DXGI_FORMAT_R8G8B8A8_SNORM
+	cudaMallocPitch(&g_texture_cube.cudaLinearMemory, &g_texture_cube.pitch, g_texture_cube.size * 4, g_texture_cube.size);
+	ProcessCudaError("cudaMallocPitch (g_texture_cube) failed: ");
+	DebugInUnity("Pitch = " + std::to_string(g_texture_cube.pitch));
+
+	cudaMemset(g_texture_cube.cudaLinearMemory, 128, g_texture_cube.pitch * g_texture_cube.size);
+	ProcessCudaError("cudaMemset (g_texture_cube) failed: ");
+
+
+
+	//Test copy over
+	if (g_texture_cube.cudaResource) {
+		cudaStream_t    stream = 0;
+		const int nbResources = 1;
+		cudaGraphicsResource *ppResources[nbResources] =
+		{
+			g_texture_cube.cudaResource
+		};
+
+		cudaGraphicsMapResources(nbResources, ppResources, stream);
+		ProcessCudaError("cudaGraphicsMapResources(3) failed: ");
+
+		for (int face = 0; face < 6; ++face)
+		{
+			cudaArray *cuArray;
+			cudaGraphicsSubResourceGetMappedArray(&cuArray, g_texture_cube.cudaResource, face, 0);
+			ProcessCudaError("cudaGraphicsSubResourceGetMappedArray (cuda_texture_cube) failed: ");
+
+			// then we want to copy cudaLinearMemory to the D3D texture, via its mapped form : cudaArray
+			cudaMemcpy2DToArray(
+				cuArray, // dst array
+				0, 0,    // offset
+				g_texture_cube.cudaLinearMemory, g_texture_cube.pitch, // src
+				g_texture_cube.size * 4, g_texture_cube.size,            // extent
+				cudaMemcpyDeviceToDevice); // kind
+			ProcessCudaError("cudaMemcpy2DToArray failed: ");
+		}
+
+		//
+		// unmap the resources
+		//
+		cudaGraphicsUnmapResources(nbResources, ppResources, stream);
+		ProcessCudaError("cudaGraphicsUnmapResources(3) failed: ");
+	}
+
+	
+
+	DebugInUnity("Width: " + std::to_string(desc.Width));
+	DebugInUnity("Height: " + std::to_string(desc.Height));
+	DebugInUnity("Mip Levels: " + std::to_string(desc.MipLevels));
+	DebugInUnity("Array size: " + std::to_string(desc.ArraySize));
+	DebugInUnity("Format: " + std::to_string(desc.Format));
+	DebugInUnity("SampleDesc.Count" + std::to_string(desc.SampleDesc.Count));
+	DebugInUnity("Usage: " + std::to_string(desc.Usage));
+	DebugInUnity("Bind Flags: " + std::to_string(desc.BindFlags));
+	DebugInUnity("Misc Flags: " + std::to_string(desc.MiscFlags));
+
+
+}
+
+
+
+
+
+
+
+
 // -------------------------------------------------------------------
 //  For filling textures
 
@@ -244,6 +349,32 @@ static void FillTextureFromCode(int width, int height, int stride, unsigned char
 }
 
 
+void RunKernels()
+{
+	static float t = 0.0f;
+	for (int face = 0; face < 6; ++face)
+	{
+		cudaArray *cuArray;
+		cudaGraphicsSubResourceGetMappedArray(&cuArray, g_texture_cube.cudaResource, face, 0);
+		ProcessCudaError("cudaGraphicsSubResourceGetMappedArray (cuda_texture_cube) failed: ");
+
+		// kick off the kernel and send the staging buffer cudaLinearMemory as an argument to allow the kernel to write to it
+		cuda_texture_cube(g_texture_cube.cudaLinearMemory, g_texture_cube.size, g_texture_cube.size, g_texture_cube.pitch, face, t);
+		ProcessCudaError("cuda_texture_cube failed: ");
+
+		//then we want to copy cudaLinearMemory to the D3D texture, via its mapped form : cudaArray
+		cudaMemcpy2DToArray(
+			cuArray, // dst array
+			0, 0,    // offset
+			g_texture_cube.cudaLinearMemory, g_texture_cube.pitch, // src
+			g_texture_cube.size * 4, g_texture_cube.size,            // extent
+			cudaMemcpyDeviceToDevice); // kind
+		ProcessCudaError("cudaMemcpy2DToArray failed: ");
+	}
+	t += 0.1f;
+	DebugInUnity("Kernel ran again");
+}
+
 // Set up D3D context, and reset texture pointer (from Unity) to new texture data
 static void DoRendering()
 {
@@ -255,19 +386,43 @@ static void DoRendering()
 		g_D3D11Device->GetImmediateContext(&ctx);
 
 		// update native texture from code
-		if (g_TexturePointer)
-		{
-			ID3D11Texture2D* d3dtex = (ID3D11Texture2D*)g_TexturePointer;
-			D3D11_TEXTURE2D_DESC desc;
-			d3dtex->GetDesc(&desc);
+		//if (g_TexturePointer)
+		//{
+		//	ID3D11Texture2D* d3dtex = (ID3D11Texture2D*)g_TexturePointer;
+		//	D3D11_TEXTURE2D_DESC desc;
+		//	d3dtex->GetDesc(&desc);
 
-			cuda_test();
+		//	//cuda_test();
 
 
-			unsigned char* data = new unsigned char[desc.Width*desc.Height * 4];
-			//FillTextureFromCode1(desc.Width, desc.Height, desc.Width * 4, data);
-			//ctx->UpdateSubresource(d3dtex, 0, NULL, data, desc.Width * 4, 0);
-			delete[] data;
+		//	unsigned char* data = new unsigned char[desc.Width*desc.Height * 4];
+		//	//FillTextureFromCode1(desc.Width, desc.Height, desc.Width * 4, data);
+		//	//ctx->UpdateSubresource(d3dtex, 0, NULL, data, desc.Width * 4, 0);
+		//	delete[] data;
+		//}
+
+		if (g_texture_cube.cudaResource) {
+			
+			cudaStream_t    stream = 0;
+			const int nbResources = 1;
+			cudaGraphicsResource *ppResources[nbResources] =
+			{
+				g_texture_cube.cudaResource
+			};
+
+			cudaGraphicsMapResources(nbResources, ppResources, stream);
+			getLastCudaError("cudaGraphicsMapResources(3) failed");
+
+			//
+			// run kernels which will populate the contents of those textures
+			//
+			RunKernels();
+
+			//
+			// unmap the resources
+			//
+			cudaGraphicsUnmapResources(nbResources, ppResources, stream);
+			getLastCudaError("cudaGraphicsUnmapResources(3) failed");
 		}
 
 		ctx->Release();

@@ -67,10 +67,13 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
         w = new WWW(texturePath);
         yield return w;
         Debug.Log("Called 'loadTextureFile'.");
+        Debug.Log("TextureFileLoaded");
+        getLoadedTextureAs2D();
+        convertToCubemapAndSetInPlugin();
     }
 
 
-    private void GetLoadedTextureAndPassToPlugin()
+    private void getLoadedTextureAs2D()
     {
         textureAs2DImg = w.texture;
 
@@ -85,15 +88,30 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
 
         // Call Apply() so it's actually uploaded to the GPU
         textureAs2DImg.Apply();
-
-        // Pass texture pointer to the plugin
-        SetTextureFromUnity(textureAs2DImg.GetNativeTexturePtr());
-        Debug.Log("Called 'GetLoadedTextureAndPassToPlugin'.");
     }
-
 
     // Take loaded texture, and map to cube map
     private void setPluginGenerated2DTextureAsCubemap()
+    {
+        //textureAsCubemap = new Cubemap(kTextureSegmentWidth, TextureFormat.RGB24, false);
+
+        //string[] cubemapFaceTypeNames = System.Enum.GetNames(typeof(CubemapFace));
+
+        //for (int i = 0; i < cubemapFaceTypeNames.Length - 1; i++)
+        //{
+        //    Color[] cubeMapFace = textureAs2DImg.GetPixels(i * kTextureSegmentWidth, 0, kTextureSegmentWidth, kTextureSegmentHeight);
+        //    textureAsCubemap.SetPixels(cubeMapFace, (CubemapFace)i);
+        //    textureAsCubemap.Apply();
+        //}
+
+        //textureAsCubemap.SmoothEdges(100);
+        //textureAsCubemap.Apply();
+        //rend.material.SetTexture("_Tex", textureAsCubemap);
+        //Debug.Log("Called 'setPluginGenerated2DTextureAsCubemap'.");
+    }
+
+    //TEST- see if this texture can be accessed by Unity
+    private void convertToCubemapAndSetInPlugin()
     {
         textureAsCubemap = new Cubemap(kTextureSegmentWidth, TextureFormat.RGB24, false);
 
@@ -109,8 +127,10 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
         textureAsCubemap.SmoothEdges(100);
         textureAsCubemap.Apply();
         rend.material.SetTexture("_Tex", textureAsCubemap);
-        Debug.Log("Called 'setPluginGenerated2DTextureAsCubemap'.");
+
+        SetTextureFromUnity(textureAsCubemap.GetNativeTexturePtr());
     }
+
 
 
     // Flip texture (to fix issue with mysteriously importing with wrong orientation)
@@ -144,13 +164,14 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
         RegisterDebugCallback(new DebugCallback(DebugMethod));
 
         StartCoroutine("loadTextureFile");
-        Debug.Log("TextureFileLoaded");
-        GetLoadedTextureAndPassToPlugin();
-        setPluginGenerated2DTextureAsCubemap(); //May not need to always call this
+        Debug.Log("Called coroutine: loadTextureFile");
+        //GetLoadedTextureAndPassToPlugin();
+        //testSetCubemapInPlugin();
+        //setPluginGenerated2DTextureAsCubemap(); //May not need to always call this
 
 
         Debug.Log("Called 'Start'.");
-        yield return StartCoroutine("CallPluginAtEndOfFrames");
+        yield return StartCoroutine("CallPluginAtEndOfFrames"); //May need to move this to "loadTextureFile" routine
     }
 
 

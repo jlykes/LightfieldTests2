@@ -61,8 +61,10 @@ static int roundDown(int number, int multiple);
 static int calcColorIndex();
 static void DecideColor1(unsigned char* ptr);
 void DebugInUnity(std::string message);
+void ProcessCudaError(std::string prefix);
 
 extern "C"
 {
 	void cuda_test();
+	void cuda_texture_cube(void *surface, int width, int height, size_t pitch, int face, float t);
 }
