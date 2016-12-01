@@ -50,18 +50,11 @@
 // -------------------------------------------------------------------
 // Function Prototypes (for custom functions)
 
-
-// Preloaded texture changer
-
-
-
 // Trivial color changer
 static void FillTextureFromCode1(int width, int height, int stride, unsigned char* dst);
 static int roundDown(int number, int multiple);
 static int calcColorIndex();
 static void DecideColor1(unsigned char* ptr);
-void DebugInUnity(std::string message);
-void ProcessCudaError(std::string prefix);
 
 extern "C"
 {

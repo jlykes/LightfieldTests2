@@ -1,6 +1,7 @@
 // Example low level rendering Unity plugin
 #include "main.h"
 #include "Unity/IUnityGraphics.h"
+#include "utils.h"
 
 #include <cassert>
 #include <cmath>
@@ -28,39 +29,6 @@
 #include <helper_functions.h>    // includes cuda.h and cuda_runtime_api.h
 
 
-// --------------------------------------------------------------------------
-// Helper utilities
-
-//Setup for making Debug.Log in Unity callable from here
-typedef void(__stdcall * DebugCallback) (const char *);
-DebugCallback gDebugCallback;
-
-extern "C" void __declspec(dllexport) RegisterDebugCallback(DebugCallback callback)
-{
-	gDebugCallback = callback;
-}
-
-void DebugInUnity(std::string message)
-{
-	gDebugCallback(message.c_str()); 
-}
-
-// COM-like Release macro
-#ifndef SAFE_RELEASE
-#define SAFE_RELEASE(a) if (a) { a->Release(); a = NULL; }
-#endif
-
-
-void ProcessCudaError(std::string prefix)
-{
-	cudaError_t error = cudaSuccess;
-	error = cudaGetLastError();
-	if (error != cudaSuccess)
-	{
-		DebugInUnity(prefix + std::to_string(error));
-	}
-
-}
 
 // --------------------------------------------------------------------------
 // Texture struct
@@ -83,9 +51,6 @@ struct
 static float g_Time;
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetTimeFromUnity(float t) { g_Time = t; }
-
-
-
 
 
 // --------------------------------------------------------------------------
@@ -189,7 +154,6 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 // be the integer passed to IssuePluginEvent. In this example, we just ignore
 // that value.
 
-
 static void DoRendering();
 
 static void UNITY_INTERFACE_API OnRenderEvent(int eventID)
@@ -233,31 +197,13 @@ static void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType)
 // SetTextureFromUnity, an example function we export which is called by one of the scripts.
 
 
-
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetTextureFromUnity(void* texturePtr)
 {
-	// A script calls this at initialization time; just remember the texture pointer here.
-	// Will update texture pixels each frame from the plugin rendering event (texture update
-	// needs to happen on the rendering thread).
-
-	//g_TexturePointer = texturePtr;
-
+	// Initialize g_texture_cube to by Unity texture; set other parameters
 	g_texture_cube.pTexture = (ID3D11Texture2D*)texturePtr;
 	D3D11_TEXTURE2D_DESC desc;
 	g_texture_cube.pTexture->GetDesc(&desc);
 	g_texture_cube.size = desc.Width;
-
-	////Create shader resource view
-	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc;
-	ZeroMemory(&SRVDesc, sizeof(SRVDesc));
-	SRVDesc.Format = desc.Format;
-	SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
-	SRVDesc.TextureCube.MipLevels = desc.MipLevels;
-	SRVDesc.TextureCube.MostDetailedMip = 0;
-
-	if (FAILED(g_D3D11Device->CreateShaderResourceView(g_texture_cube.pTexture, &SRVDesc, &g_texture_cube.pSRView)))
-	{
-	}
 
 	// Puts pTexture into cudaResource
 	cudaGraphicsD3D11RegisterResource(&g_texture_cube.cudaResource, g_texture_cube.pTexture, cudaGraphicsRegisterFlagsNone);
@@ -266,89 +212,15 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetTextureFromUnity(v
 	// Create the buffer. pixel fmt is DXGI_FORMAT_R8G8B8A8_SNORM
 	cudaMallocPitch(&g_texture_cube.cudaLinearMemory, &g_texture_cube.pitch, g_texture_cube.size * 4, g_texture_cube.size);
 	ProcessCudaError("cudaMallocPitch (g_texture_cube) failed: ");
-	DebugInUnity("Pitch = " + std::to_string(g_texture_cube.pitch));
-
 	cudaMemset(g_texture_cube.cudaLinearMemory, 128, g_texture_cube.pitch * g_texture_cube.size);
 	ProcessCudaError("cudaMemset (g_texture_cube) failed: ");
-
-
-
-	//Test copy over
-	if (g_texture_cube.cudaResource) {
-		cudaStream_t    stream = 0;
-		const int nbResources = 1;
-		cudaGraphicsResource *ppResources[nbResources] =
-		{
-			g_texture_cube.cudaResource
-		};
-
-		cudaGraphicsMapResources(nbResources, ppResources, stream);
-		ProcessCudaError("cudaGraphicsMapResources(3) failed: ");
-
-		for (int face = 0; face < 6; ++face)
-		{
-			cudaArray *cuArray;
-			cudaGraphicsSubResourceGetMappedArray(&cuArray, g_texture_cube.cudaResource, face, 0);
-			ProcessCudaError("cudaGraphicsSubResourceGetMappedArray (cuda_texture_cube) failed: ");
-
-			// then we want to copy cudaLinearMemory to the D3D texture, via its mapped form : cudaArray
-			cudaMemcpy2DToArray(
-				cuArray, // dst array
-				0, 0,    // offset
-				g_texture_cube.cudaLinearMemory, g_texture_cube.pitch, // src
-				g_texture_cube.size * 4, g_texture_cube.size,            // extent
-				cudaMemcpyDeviceToDevice); // kind
-			ProcessCudaError("cudaMemcpy2DToArray failed: ");
-		}
-
-		//
-		// unmap the resources
-		//
-		cudaGraphicsUnmapResources(nbResources, ppResources, stream);
-		ProcessCudaError("cudaGraphicsUnmapResources(3) failed: ");
-	}
-
-	
-
-	DebugInUnity("Width: " + std::to_string(desc.Width));
-	DebugInUnity("Height: " + std::to_string(desc.Height));
-	DebugInUnity("Mip Levels: " + std::to_string(desc.MipLevels));
-	DebugInUnity("Array size: " + std::to_string(desc.ArraySize));
-	DebugInUnity("Format: " + std::to_string(desc.Format));
-	DebugInUnity("SampleDesc.Count" + std::to_string(desc.SampleDesc.Count));
-	DebugInUnity("Usage: " + std::to_string(desc.Usage));
-	DebugInUnity("Bind Flags: " + std::to_string(desc.BindFlags));
-	DebugInUnity("Misc Flags: " + std::to_string(desc.MiscFlags));
-
-
 }
-
-
-
-
-
-
 
 
 // -------------------------------------------------------------------
 //  For filling textures
 
-
-// Load image to use as texture, and apply gradual brighteness increase / decrease
-// depending on how much time has passed
-static void FillTextureFromCode(int width, int height, int stride, unsigned char* dst)
-{
-	//if based texture not loaded
-	//__load it
-	//__convert it to unsigned char* ___baseData
-
-	//set ___brightnessMultiplier (function of time)
-
-	//__fillDst based on multiplying brightnessMultiplier * baseData value
-
-}
-
-
+//Run kernels in CUDA file
 void RunKernels()
 {
 	static float t = 0.0f;
@@ -375,6 +247,7 @@ void RunKernels()
 	DebugInUnity("Kernel ran again");
 }
 
+
 // Set up D3D context, and reset texture pointer (from Unity) to new texture data
 static void DoRendering()
 {
@@ -384,22 +257,6 @@ static void DoRendering()
 	{
 		ID3D11DeviceContext* ctx = NULL;
 		g_D3D11Device->GetImmediateContext(&ctx);
-
-		// update native texture from code
-		//if (g_TexturePointer)
-		//{
-		//	ID3D11Texture2D* d3dtex = (ID3D11Texture2D*)g_TexturePointer;
-		//	D3D11_TEXTURE2D_DESC desc;
-		//	d3dtex->GetDesc(&desc);
-
-		//	//cuda_test();
-
-
-		//	unsigned char* data = new unsigned char[desc.Width*desc.Height * 4];
-		//	//FillTextureFromCode1(desc.Width, desc.Height, desc.Width * 4, data);
-		//	//ctx->UpdateSubresource(d3dtex, 0, NULL, data, desc.Width * 4, 0);
-		//	delete[] data;
-		//}
 
 		if (g_texture_cube.cudaResource) {
 			
@@ -434,7 +291,38 @@ static void DoRendering()
 
 
 // -------------------------------------------------------------------
-// Helpers for trivial color change 1
+// UNUSED
+
+// Previous update texture render code (in "DoRendering")
+// update native texture from code
+//if (g_TexturePointer)
+//{
+//	ID3D11Texture2D* d3dtex = (ID3D11Texture2D*)g_TexturePointer;
+//	D3D11_TEXTURE2D_DESC desc;
+//	d3dtex->GetDesc(&desc);
+
+//	//cuda_test();
+
+
+//	unsigned char* data = new unsigned char[desc.Width*desc.Height * 4];
+//	//FillTextureFromCode1(desc.Width, desc.Height, desc.Width * 4, data);
+//	//ctx->UpdateSubresource(d3dtex, 0, NULL, data, desc.Width * 4, 0);
+//	delete[] data;
+//}
+
+// Load image to use as texture, and apply gradual brighteness increase / decrease
+// depending on how much time has passed
+static void FillTextureFromCode(int width, int height, int stride, unsigned char* dst)
+{
+	//if based texture not loaded
+	//__load it
+	//__convert it to unsigned char* ___baseData
+
+	//set ___brightnessMultiplier (function of time)
+
+	//__fillDst based on multiplying brightnessMultiplier * baseData value
+
+}
 
 
 static void FillTextureFromCode1(int width, int height, int stride, unsigned char* dst)
