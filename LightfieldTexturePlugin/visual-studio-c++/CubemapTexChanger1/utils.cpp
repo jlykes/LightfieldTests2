@@ -41,7 +41,7 @@ void ProcessCudaError(std::string prefix)
 	error = cudaGetLastError();
 	if (error != cudaSuccess)
 	{
-		DebugInUnity(prefix + std::to_string(error));
+		DebugInUnity(prefix + std::to_string(error) + ": " + cudaGetErrorString(error));
 	}
 }
 

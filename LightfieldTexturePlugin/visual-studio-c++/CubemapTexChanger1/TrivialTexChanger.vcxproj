@@ -157,6 +157,7 @@
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="cudaHelloWorld.cu" />
+    <CudaCompile Include="textureCubeBrightness.cu" />
     <CudaCompile Include="textureCubeStrobelight.cu" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -65,8 +65,9 @@ struct TextureCube
 {
 	ID3D11Texture2D         *pTexture;
 	ID3D11ShaderResourceView *pSRView;
-	cudaGraphicsResource    *cudaResource;
-	void                    *cudaLinearMemory;
+	cudaGraphicsResource    *cudaResourceOutput;
+	void                    *cudaLinearMemoryOutput;
+	void					*cudaLinearMemoryInput[6];
 	size_t                  pitch;
 	int                     size;
 };
@@ -90,6 +91,9 @@ static std::string s_UnityStreamingAssetsPath;
 
 // Textures
 struct TextureCube g_texture_cube_left, g_texture_cube_right;
+
+// Debugging
+bool consoleLogInitiated = false;
 
 // Constants
 std::string kLeftEyeName = "L";
@@ -118,4 +122,5 @@ extern "C"
 {
 	void CudaWrapperHelloWorld();
 	void CudaWrapperTextureCubeStrobelight(void *surface, int width, int height, size_t pitch, int face, float t);
+	void CudaWrapperTextureCubeBrightness(void *inputSurface, void *outputSurface, int width, int height, size_t pitch, int face, float t);
 }

@@ -50,6 +50,12 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
     [DllImport("CubemapTexChanger1")]
     private static extern void RegisterDebugCallback(DebugCallback callback);
 
+    [DllImport("CubemapTexChanger1")]
+    private static extern void LogConsoleOutputToConsole();
+
+    [DllImport("CubemapTexChanger1")]
+    private static extern void LogConsoleOutputToFile();
+
     // ----------------------------------------------------------------------------
     // Debug
     // ----------------------------------------------------------------------------
@@ -147,6 +153,8 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
     IEnumerator Start () {
         //Make it so that plugin can use Debug.Log
         RegisterDebugCallback(new DebugCallback(DebugMethod));
+        //LogConsoleOutputToConsole();
+        LogConsoleOutputToFile();
 
         //Set event nuber that plugin will use to determine eye
         pluginEventNumber = (eyeName == "L") ? 1 : 2;
