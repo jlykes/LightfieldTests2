@@ -7,6 +7,7 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
 
     // ----------------------------------------------------------------------------
     // Public Global Parameters
+    // ----------------------------------------------------------------------------
 
     public string loadedTextureName;
     public string eyeName;
@@ -14,10 +15,10 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
 
     // ----------------------------------------------------------------------------
     // Private Global Variables
+    // ----------------------------------------------------------------------------
 
     WWW w;
     Renderer rend;
-    bool textureFinishedLoading;
     Texture2D textureAs2DImg;
     Cubemap textureAsCubemap;
     int pluginEventNumber;
@@ -25,6 +26,7 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
 
     // ----------------------------------------------------------------------------
     // Constants
+    // ----------------------------------------------------------------------------
 
     int kTextureSegmentWidth = 1024;
     int kTextureSegmentHeight = 1024;
@@ -32,6 +34,7 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
 
     // ----------------------------------------------------------------------------
     // Plugin Function Prototypes
+    // ----------------------------------------------------------------------------
 
     private delegate void DebugCallback(string message);
 
@@ -51,6 +54,7 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
     // Debug
     // ----------------------------------------------------------------------------
 
+    // Method that plugin can use to print to Unity console via Debug.Log
     private static void DebugMethod(string message)
     {
         Debug.Log("CubemapTexChanger1: " + message);
@@ -66,8 +70,10 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
     {
         rend = GetComponent<Renderer>();
         string texturePath = "file:///" + Application.dataPath + "/Resources/" + eyeName + "-" + loadedTextureName + ".png";
+
         w = new WWW(texturePath);
         yield return w;
+
         getLoadedTextureAs2D();
         convertToCubemapAndSetInPlugin();
     }
@@ -75,6 +81,7 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
 
     private void getLoadedTextureAs2D()
     {
+        // Get and scale and flip texture from loader WWW
         textureAs2DImg = w.texture;
 
         TextureScaler.scale(textureAs2DImg, 
@@ -90,27 +97,7 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
         textureAs2DImg.Apply();
     }
 
-    // Take loaded texture, and map to cube map
-    private void setPluginGenerated2DTextureAsCubemap()
-    {
-        //textureAsCubemap = new Cubemap(kTextureSegmentWidth, TextureFormat.RGB24, false);
-
-        //string[] cubemapFaceTypeNames = System.Enum.GetNames(typeof(CubemapFace));
-
-        //for (int i = 0; i < cubemapFaceTypeNames.Length - 1; i++)
-        //{
-        //    Color[] cubeMapFace = textureAs2DImg.GetPixels(i * kTextureSegmentWidth, 0, kTextureSegmentWidth, kTextureSegmentHeight);
-        //    textureAsCubemap.SetPixels(cubeMapFace, (CubemapFace)i);
-        //    textureAsCubemap.Apply();
-        //}
-
-        //textureAsCubemap.SmoothEdges(100);
-        //textureAsCubemap.Apply();
-        //rend.material.SetTexture("_Tex", textureAsCubemap);
-        //Debug.Log("Called 'setPluginGenerated2DTextureAsCubemap'.");
-    }
-
-    //TEST- see if this texture can be accessed by Unity
+    // Creates cubemap holder, puts loaded texture in, and sets pointer in plugin
     private void convertToCubemapAndSetInPlugin()
     {
         textureAsCubemap = new Cubemap(kTextureSegmentWidth, TextureFormat.RGB24, false);
@@ -158,12 +145,16 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
     // ----------------------------------------------------------------------------
 
     IEnumerator Start () {
+        //Make it so that plugin can use Debug.Log
         RegisterDebugCallback(new DebugCallback(DebugMethod));
-        pluginEventNumber = (eyeName == "L") ? 1 : 2;
-        StartCoroutine("loadTextureFile");
-        yield return StartCoroutine("CallPluginAtEndOfFrames"); //May need to move this to "loadTextureFile" routine
-    }
 
+        //Set event nuber that plugin will use to determine eye
+        pluginEventNumber = (eyeName == "L") ? 1 : 2;
+
+        //Load texture file, and then start call to plugin at end of each frame
+        StartCoroutine("loadTextureFile");
+        yield return StartCoroutine("CallPluginAtEndOfFrames");
+    }
 
     private IEnumerator CallPluginAtEndOfFrames()
     {
@@ -175,9 +166,7 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
             // Set time for the plugin
             SetTimeFromUnity(Time.timeSinceLevelLoad);
 
-            // Issue a plugin event with arbitrary integer identifier.
-            // The plugin can distinguish between different
-            // things it needs to do based on this ID.
+            // Issue a plugin event; ID tells which eye to use
             GL.IssuePluginEvent(GetRenderEventFunc(), pluginEventNumber);
         }
     }

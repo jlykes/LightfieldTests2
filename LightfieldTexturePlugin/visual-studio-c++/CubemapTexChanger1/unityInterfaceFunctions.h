@@ -60,7 +60,6 @@
 // Types
 // --------------------------------------------------------------------------
 
-
 // Data structure for cube texture shared between DX10 and CUDA
 struct TextureCube
 {
@@ -71,6 +70,7 @@ struct TextureCube
 	size_t                  pitch;
 	int                     size;
 };
+
 
 // --------------------------------------------------------------------------
 // Global variables
@@ -90,7 +90,10 @@ static std::string s_UnityStreamingAssetsPath;
 
 // Textures
 struct TextureCube g_texture_cube_left, g_texture_cube_right;
-//struct TextureCube g_texture_cube;
+
+// Constants
+std::string kLeftEyeName = "L";
+std::string kRightEyeName = "R";
 
 
 // --------------------------------------------------------------------------
@@ -106,6 +109,9 @@ static void UNITY_INTERFACE_API OnRenderEvent(int eventID);
 static void SetTextureFromUnityImplementation(void* texturePtr, std::string eyeName);
 static void DoRendering(std::string eyeName);
 void RunTextureFillingKernels(std::string eyeName);
+
+// Helpers (that can't go in Utils)
+struct TextureCube * GetTextureCubeForEye(std::string eyeName);
 
 // CUDA function calls
 extern "C"

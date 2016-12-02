@@ -24,6 +24,7 @@
 #include <vector>
 #include <string>
 
+
 // --------------------------------------------------------------------------
 // Include headers for the graphics APIs we support
 // --------------------------------------------------------------------------
@@ -50,7 +51,6 @@
 // UNITY INTERFACE FUNCTIONS
 // =======================================================================================================
 // -------------------------------------------------------------------------------------------------------
-
 
 
 // --------------------------------------------------------------------------
@@ -163,7 +163,6 @@ extern "C" UnityRenderingEvent UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRen
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetTextureFromUnity(void* texturePtr, const char* eyeName)
 {
 	SetTextureFromUnityImplementation(texturePtr, eyeName);
-	DebugInUnity("SetTextureFromUnity is running eye: " + (std::string)eyeName);
 }
 
 // This will be called for GL.IssuePluginEvent script calls; eventID will
@@ -177,11 +176,11 @@ static void UNITY_INTERFACE_API OnRenderEvent(int eventID)
 
 	if (eventID == 1)
 	{
-		DoRendering("L");
+		DoRendering(kLeftEyeName);
 	}
 	else if (eventID == 2)
 	{
-		DoRendering("R");
+		DoRendering(kRightEyeName);
 	}
 }
 
@@ -191,19 +190,6 @@ static void UNITY_INTERFACE_API OnRenderEvent(int eventID)
 // TEXTURE / RENDER HANDLING
 // =======================================================================================================
 // -------------------------------------------------------------------------------------------------------
-
-
-struct TextureCube * GetTextureCubeForEye(std::string eyeName) {
-	if (eyeName == "L")
-	{
-		return &g_texture_cube_left;
-	}
-	else if (eyeName == "R")
-	{
-		return &g_texture_cube_right;
-	}
-}
-
 
 // --------------------------------------------------------------------------
 // Texture setup / filling
@@ -244,11 +230,11 @@ void RunTextureFillingKernels(std::string eyeName)
 		cudaGraphicsSubResourceGetMappedArray(&cuArray, g_texture_cube->cudaResource, face, 0);
 		ProcessCudaError("cudaGraphicsSubResourceGetMappedArray (cuda_texture_cube) failed: ");
 
-		// kick off the kernel and send the staging buffer cudaLinearMemory as an argument to allow the kernel to write to it
+		// Kick off the kernel and send the staging buffer cudaLinearMemory as an argument to allow the kernel to write to it
 		CudaWrapperTextureCubeStrobelight(g_texture_cube->cudaLinearMemory, g_texture_cube->size, g_texture_cube->size, g_texture_cube->pitch, face, t);
 		ProcessCudaError("cuda_texture_cube failed: ");
 
-		//then we want to copy cudaLinearMemory to the D3D texture, via its mapped form : cudaArray
+		// Then we want to copy cudaLinearMemory to the D3D texture, via its mapped form : cudaArray
 		cudaMemcpy2DToArray(
 			cuArray, // dst array
 			0, 0,    // offset
@@ -258,9 +244,7 @@ void RunTextureFillingKernels(std::string eyeName)
 		ProcessCudaError("cudaMemcpy2DToArray failed: ");
 	}
 	t += 0.1f;
-	DebugInUnity("Kernel ran again from eye: " + eyeName);
 }
-
 
 
 // --------------------------------------------------------------------------
@@ -272,7 +256,6 @@ static void DoRendering(std::string eyeName)
 {
 	struct TextureCube * g_texture_cube = GetTextureCubeForEye(eyeName);
 
-	// D3D11 case
 	if (s_DeviceType == kUnityGfxRendererD3D11)
 	{
 		ID3D11DeviceContext* ctx = NULL;
@@ -290,14 +273,10 @@ static void DoRendering(std::string eyeName)
 			cudaGraphicsMapResources(nbResources, ppResources, stream);
 			getLastCudaError("cudaGraphicsMapResources(3) failed");
 
-			//
-			// run kernels which will populate the contents of those textures
-			//
+			// Run kernels which will populate the contents of those textures
 			RunTextureFillingKernels(eyeName);
 
-			//
-			// unmap the resources
-			//
+			// Unmap the resources
 			cudaGraphicsUnmapResources(nbResources, ppResources, stream);
 			getLastCudaError("cudaGraphicsUnmapResources(3) failed");
 		}
@@ -305,3 +284,18 @@ static void DoRendering(std::string eyeName)
 	}
 }
 
+// --------------------------------------------------------------------------
+// Helpers (that can't go in Utils)
+// --------------------------------------------------------------------------
+
+// Returns pointer to right texture cube, depending on eye
+struct TextureCube * GetTextureCubeForEye(std::string eyeName) {
+	if (eyeName == kLeftEyeName)
+	{
+		return &g_texture_cube_left;
+	}
+	else if (eyeName == kRightEyeName)
+	{
+		return &g_texture_cube_right;
+	}
+}
