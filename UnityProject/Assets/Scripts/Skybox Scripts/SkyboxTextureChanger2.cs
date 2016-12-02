@@ -43,12 +43,15 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
     [DllImport("CubemapTexChanger1")]
     private static extern IntPtr GetRenderEventFunc();
 
-
     [DllImport("CubemapTexChanger1")]
     private static extern void RegisterDebugCallback(DebugCallback callback);
 
+    [DllImport("CubemapTexChanger1")]
+    private static extern void SetEyeFromUnity(string eyeName);
+
     // ----------------------------------------------------------------------------
     // Debug
+    // ----------------------------------------------------------------------------
 
     private static void DebugMethod(string message)
     {
@@ -58,6 +61,7 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
 
     // ----------------------------------------------------------------------------
     // Texture Manipulation
+    // ----------------------------------------------------------------------------
 
     // Load texture from file for first time
     IEnumerator loadTextureFile()
@@ -159,9 +163,12 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
 
     // ----------------------------------------------------------------------------
     // Main Loop
+    // ----------------------------------------------------------------------------
 
     IEnumerator Start () {
         RegisterDebugCallback(new DebugCallback(DebugMethod));
+        Debug.Log("Running script from eye: " + eyeName);
+        SetEyeFromUnity(eyeName);
 
         StartCoroutine("loadTextureFile");
         Debug.Log("Called coroutine: loadTextureFile");
@@ -181,6 +188,7 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
         {
             // Wait until all frame rendering is done
             yield return new WaitForEndOfFrame();
+            Debug.Log("Running CallPluginAtEndOfFrames from: " + eyeName);
 
             // Set time for the plugin
             SetTimeFromUnity(Time.timeSinceLevelLoad);
@@ -191,13 +199,7 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
             // For our simple plugin, it does not matter which ID we pass here.
 
             GL.IssuePluginEvent(GetRenderEventFunc(), 1);
-            //setPluginGenerated2DTextureAsCubemap();
         }
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-
-    }
 }
