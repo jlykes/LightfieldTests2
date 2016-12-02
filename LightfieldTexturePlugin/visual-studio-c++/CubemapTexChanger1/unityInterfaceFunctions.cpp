@@ -52,6 +52,7 @@
 // -------------------------------------------------------------------------------------------------------
 
 
+
 // --------------------------------------------------------------------------
 // UnitySetInterfaces
 // --------------------------------------------------------------------------
@@ -159,10 +160,10 @@ extern "C" UnityRenderingEvent UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRen
 	return OnRenderEvent;
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetTextureFromUnity(void* texturePtr)
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetTextureFromUnity(void* texturePtr, const char* eyeName)
 {
-	SetTextureFromUnityImplementation(texturePtr);
-	DebugInUnity("SetTextureFromUnity is running eye: " + g_eyeName);
+	SetTextureFromUnityImplementation(texturePtr, eyeName);
+	DebugInUnity("SetTextureFromUnity is running eye: " + (std::string)eyeName);
 }
 
 // This will be called for GL.IssuePluginEvent script calls; eventID will
@@ -174,17 +175,14 @@ static void UNITY_INTERFACE_API OnRenderEvent(int eventID)
 	if (s_DeviceType == kUnityGfxRendererNull)
 		return;
 
-	DoRendering();
-}
-
-
-// --------------------------------------------------------------------------
-// Eye checking
-// --------------------------------------------------------------------------
-
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetEyeFromUnity(const char* eyeName)
-{
-	g_eyeName = eyeName;
+	if (eventID == 1)
+	{
+		DoRendering("L");
+	}
+	else if (eventID == 2)
+	{
+		DoRendering("R");
+	}
 }
 
 
@@ -195,20 +193,16 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetEyeFromUnity(const
 // -------------------------------------------------------------------------------------------------------
 
 
-// --------------------------------------------------------------------------
-// Texture struct
-// --------------------------------------------------------------------------
-
-// Data structure for cube texture shared between DX10 and CUDA
-struct
-{
-	ID3D11Texture2D         *pTexture;
-	ID3D11ShaderResourceView *pSRView;
-	cudaGraphicsResource    *cudaResource;
-	void                    *cudaLinearMemory;
-	size_t                  pitch;
-	int                     size;
-} g_texture_cube;
+struct TextureCube * GetTextureCubeForEye(std::string eyeName) {
+	if (eyeName == "L")
+	{
+		return &g_texture_cube_left;
+	}
+	else if (eyeName == "R")
+	{
+		return &g_texture_cube_right;
+	}
+}
 
 
 // --------------------------------------------------------------------------
@@ -216,52 +210,55 @@ struct
 // --------------------------------------------------------------------------
 
 // Implementation of texture setting function that Unity calls
-static void SetTextureFromUnityImplementation(void* texturePtr) {
+static void SetTextureFromUnityImplementation(void* texturePtr, std::string eyeName) {
+
+	struct TextureCube * g_texture_cube = GetTextureCubeForEye(eyeName);
+
 	// Initialize g_texture_cube to by Unity texture; set other parameters
-	g_texture_cube.pTexture = (ID3D11Texture2D*)texturePtr;
+	g_texture_cube->pTexture = (ID3D11Texture2D*)texturePtr;
 	D3D11_TEXTURE2D_DESC desc;
-	g_texture_cube.pTexture->GetDesc(&desc);
-	g_texture_cube.size = desc.Width;
+	g_texture_cube->pTexture->GetDesc(&desc);
+	g_texture_cube->size = desc.Width;
 
 	// Puts pTexture into cudaResource
-	cudaGraphicsD3D11RegisterResource(&g_texture_cube.cudaResource, g_texture_cube.pTexture, cudaGraphicsRegisterFlagsNone);
+	cudaGraphicsD3D11RegisterResource(&g_texture_cube->cudaResource, g_texture_cube->pTexture, cudaGraphicsRegisterFlagsNone);
 	ProcessCudaError("cudaGraphicsD3D11RegisterResource (g_texture_cube) failed: ");
 
 	// Create the buffer. pixel fmt is DXGI_FORMAT_R8G8B8A8_SNORM
-	cudaMallocPitch(&g_texture_cube.cudaLinearMemory, &g_texture_cube.pitch, g_texture_cube.size * 4, g_texture_cube.size);
+	cudaMallocPitch(&g_texture_cube->cudaLinearMemory, &g_texture_cube->pitch, g_texture_cube->size * 4, g_texture_cube->size);
 	ProcessCudaError("cudaMallocPitch (g_texture_cube) failed: ");
-	cudaMemset(g_texture_cube.cudaLinearMemory, 128, g_texture_cube.pitch * g_texture_cube.size);
+	cudaMemset(g_texture_cube->cudaLinearMemory, 128, g_texture_cube->pitch * g_texture_cube->size);
 	ProcessCudaError("cudaMemset (g_texture_cube) failed: ");
-
-	DebugInUnity("SetTextureFromUnityImplementation is running eye: " + g_eyeName);
 }
 
 
 //Run kernels in CUDA file
-void RunTextureFillingKernels()
+void RunTextureFillingKernels(std::string eyeName)
 {
+	struct TextureCube * g_texture_cube = GetTextureCubeForEye(eyeName);
+
 	static float t = 0.0f;
 	for (int face = 0; face < 6; ++face)
 	{
 		cudaArray *cuArray;
-		cudaGraphicsSubResourceGetMappedArray(&cuArray, g_texture_cube.cudaResource, face, 0);
+		cudaGraphicsSubResourceGetMappedArray(&cuArray, g_texture_cube->cudaResource, face, 0);
 		ProcessCudaError("cudaGraphicsSubResourceGetMappedArray (cuda_texture_cube) failed: ");
 
 		// kick off the kernel and send the staging buffer cudaLinearMemory as an argument to allow the kernel to write to it
-		CudaWrapperTextureCubeStrobelight(g_texture_cube.cudaLinearMemory, g_texture_cube.size, g_texture_cube.size, g_texture_cube.pitch, face, t);
+		CudaWrapperTextureCubeStrobelight(g_texture_cube->cudaLinearMemory, g_texture_cube->size, g_texture_cube->size, g_texture_cube->pitch, face, t);
 		ProcessCudaError("cuda_texture_cube failed: ");
 
 		//then we want to copy cudaLinearMemory to the D3D texture, via its mapped form : cudaArray
 		cudaMemcpy2DToArray(
 			cuArray, // dst array
 			0, 0,    // offset
-			g_texture_cube.cudaLinearMemory, g_texture_cube.pitch, // src
-			g_texture_cube.size * 4, g_texture_cube.size,            // extent
+			g_texture_cube->cudaLinearMemory, g_texture_cube->pitch, // src
+			g_texture_cube->size * 4, g_texture_cube->size,            // extent
 			cudaMemcpyDeviceToDevice); // kind
 		ProcessCudaError("cudaMemcpy2DToArray failed: ");
 	}
 	t += 0.1f;
-	DebugInUnity("Kernel ran again from eye: " + g_eyeName);
+	DebugInUnity("Kernel ran again from eye: " + eyeName);
 }
 
 
@@ -271,21 +268,23 @@ void RunTextureFillingKernels()
 // --------------------------------------------------------------------------
 
 // Set up D3D context, and reset texture pointer (from Unity) to new texture data
-static void DoRendering()
+static void DoRendering(std::string eyeName)
 {
+	struct TextureCube * g_texture_cube = GetTextureCubeForEye(eyeName);
+
 	// D3D11 case
 	if (s_DeviceType == kUnityGfxRendererD3D11)
 	{
 		ID3D11DeviceContext* ctx = NULL;
 		g_D3D11Device->GetImmediateContext(&ctx);
 
-		if (g_texture_cube.cudaResource) {
+		if (g_texture_cube->cudaResource) {
 
 			cudaStream_t    stream = 0;
 			const int nbResources = 1;
 			cudaGraphicsResource *ppResources[nbResources] =
 			{
-				g_texture_cube.cudaResource
+				g_texture_cube->cudaResource
 			};
 
 			cudaGraphicsMapResources(nbResources, ppResources, stream);
@@ -294,7 +293,7 @@ static void DoRendering()
 			//
 			// run kernels which will populate the contents of those textures
 			//
-			RunTextureFillingKernels();
+			RunTextureFillingKernels(eyeName);
 
 			//
 			// unmap the resources

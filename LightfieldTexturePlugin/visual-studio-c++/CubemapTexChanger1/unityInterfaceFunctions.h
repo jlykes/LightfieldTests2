@@ -57,6 +57,22 @@
 #endif
 
 // --------------------------------------------------------------------------
+// Types
+// --------------------------------------------------------------------------
+
+
+// Data structure for cube texture shared between DX10 and CUDA
+struct TextureCube
+{
+	ID3D11Texture2D         *pTexture;
+	ID3D11ShaderResourceView *pSRView;
+	cudaGraphicsResource    *cudaResource;
+	void                    *cudaLinearMemory;
+	size_t                  pitch;
+	int                     size;
+};
+
+// --------------------------------------------------------------------------
 // Global variables
 // --------------------------------------------------------------------------
 
@@ -72,8 +88,9 @@ static ID3D11Device* g_D3D11Device = NULL;
 static float g_Time;
 static std::string s_UnityStreamingAssetsPath;
 
-// Eye checking
-std::string g_eyeName;
+// Textures
+struct TextureCube g_texture_cube_left, g_texture_cube_right;
+//struct TextureCube g_texture_cube;
 
 
 // --------------------------------------------------------------------------
@@ -86,9 +103,9 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 static void UNITY_INTERFACE_API OnRenderEvent(int eventID);
 
 // Texture / render handling
-static void SetTextureFromUnityImplementation(void* texturePtr);
-static void DoRendering();
-void RunTextureFillingKernels();
+static void SetTextureFromUnityImplementation(void* texturePtr, std::string eyeName);
+static void DoRendering(std::string eyeName);
+void RunTextureFillingKernels(std::string eyeName);
 
 // CUDA function calls
 extern "C"

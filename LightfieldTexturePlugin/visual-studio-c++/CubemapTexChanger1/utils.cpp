@@ -56,3 +56,14 @@ void PrintTextureDesc(D3D11_TEXTURE2D_DESC desc)
 	DebugInUnity("Bind Flags: " + std::to_string(desc.BindFlags));
 	DebugInUnity("Misc Flags: " + std::to_string(desc.MiscFlags));
 }
+
+//struct TextureCube GetTextureCubeForEye(std::string eyeName) {
+	//if (eyeName == "L")
+	//{
+	//	return g_texture_cube_left;
+	//}
+	//else if (eyeName == "R")
+	//{
+	//	return g_texture_cube_right;
+	//}
+//}

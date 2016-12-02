@@ -20,6 +20,7 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
     bool textureFinishedLoading;
     Texture2D textureAs2DImg;
     Cubemap textureAsCubemap;
+    int pluginEventNumber;
 
 
     // ----------------------------------------------------------------------------
@@ -38,16 +39,13 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
     private static extern void SetTimeFromUnity(float t);
 
     [DllImport("CubemapTexChanger1")]
-    private static extern void SetTextureFromUnity(System.IntPtr texture);
+    private static extern void SetTextureFromUnity(System.IntPtr texture, string eyeName);
 
     [DllImport("CubemapTexChanger1")]
     private static extern IntPtr GetRenderEventFunc();
 
     [DllImport("CubemapTexChanger1")]
     private static extern void RegisterDebugCallback(DebugCallback callback);
-
-    [DllImport("CubemapTexChanger1")]
-    private static extern void SetEyeFromUnity(string eyeName);
 
     // ----------------------------------------------------------------------------
     // Debug
@@ -70,8 +68,6 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
         string texturePath = "file:///" + Application.dataPath + "/Resources/" + eyeName + "-" + loadedTextureName + ".png";
         w = new WWW(texturePath);
         yield return w;
-        Debug.Log("Called 'loadTextureFile'.");
-        Debug.Log("TextureFileLoaded");
         getLoadedTextureAs2D();
         convertToCubemapAndSetInPlugin();
     }
@@ -132,10 +128,8 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
         textureAsCubemap.Apply();
         rend.material.SetTexture("_Tex", textureAsCubemap);
 
-        SetTextureFromUnity(textureAsCubemap.GetNativeTexturePtr());
+        SetTextureFromUnity(textureAsCubemap.GetNativeTexturePtr(), eyeName);
     }
-
-
 
     // Flip texture (to fix issue with mysteriously importing with wrong orientation)
     private Texture2D FlipTextureY(Texture2D original)
@@ -154,11 +148,9 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
             }
         }
         flipped.Apply();
-        Debug.Log("Called 'FlipTextureY'.");
 
         return flipped;
     }
-
 
 
     // ----------------------------------------------------------------------------
@@ -167,17 +159,8 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
 
     IEnumerator Start () {
         RegisterDebugCallback(new DebugCallback(DebugMethod));
-        Debug.Log("Running script from eye: " + eyeName);
-        SetEyeFromUnity(eyeName);
-
+        pluginEventNumber = (eyeName == "L") ? 1 : 2;
         StartCoroutine("loadTextureFile");
-        Debug.Log("Called coroutine: loadTextureFile");
-        //GetLoadedTextureAndPassToPlugin();
-        //testSetCubemapInPlugin();
-        //setPluginGenerated2DTextureAsCubemap(); //May not need to always call this
-
-
-        Debug.Log("Called 'Start'.");
         yield return StartCoroutine("CallPluginAtEndOfFrames"); //May need to move this to "loadTextureFile" routine
     }
 
@@ -188,7 +171,6 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
         {
             // Wait until all frame rendering is done
             yield return new WaitForEndOfFrame();
-            Debug.Log("Running CallPluginAtEndOfFrames from: " + eyeName);
 
             // Set time for the plugin
             SetTimeFromUnity(Time.timeSinceLevelLoad);
@@ -196,9 +178,7 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
             // Issue a plugin event with arbitrary integer identifier.
             // The plugin can distinguish between different
             // things it needs to do based on this ID.
-            // For our simple plugin, it does not matter which ID we pass here.
-
-            GL.IssuePluginEvent(GetRenderEventFunc(), 1);
+            GL.IssuePluginEvent(GetRenderEventFunc(), pluginEventNumber);
         }
     }
 

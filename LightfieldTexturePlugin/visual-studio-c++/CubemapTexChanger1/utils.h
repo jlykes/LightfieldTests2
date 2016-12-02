@@ -25,9 +25,14 @@
 #define SAFE_RELEASE(a) if (a) { a->Release(); a = NULL; }
 #endif
 
+
+
 //Setup for making Debug.Log in Unity callable from here
 void DebugInUnity(std::string message);
 
 //Other helpers
 void ProcessCudaError(std::string prefix);
 void PrintTextureDesc(D3D11_TEXTURE2D_DESC desc);
+//struct TextureCube GetTextureCubeForEye(std::string eyeName);
+
+
