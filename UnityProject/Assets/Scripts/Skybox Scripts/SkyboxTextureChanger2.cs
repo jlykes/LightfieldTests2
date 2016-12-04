@@ -1,4 +1,6 @@
-﻿using UnityEngine;
+﻿//This version imports the texture USING UNITY, using Unity import functions
+
+using UnityEngine;
 using System.Collections;
 using System;
 using System.Runtime.InteropServices;
@@ -154,7 +156,7 @@ public class SkyboxTextureChanger2 : MonoBehaviour {
         //Make it so that plugin can use Debug.Log
         RegisterDebugCallback(new DebugCallback(DebugMethod));
         //LogConsoleOutputToConsole();
-        LogConsoleOutputToFile();
+        //LogConsoleOutputToFile();
 
         //Set event nuber that plugin will use to determine eye
         pluginEventNumber = (eyeName == "L") ? 1 : 2;

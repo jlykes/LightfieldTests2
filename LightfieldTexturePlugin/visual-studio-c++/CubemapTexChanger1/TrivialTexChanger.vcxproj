@@ -71,12 +71,12 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>F:\Additional Program Files\Microsoft DirectX SDK %28June 2010%29\Include;$(IncludePath)</IncludePath>
-    <LibraryPath>F:\Additional Program Files\Microsoft DirectX SDK %28June 2010%29\Lib\x64;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(IncludePath);F:\Additional Program Files\Microsoft DirectX SDK %28June 2010%29\Include</IncludePath>
+    <LibraryPath>$(LibraryPath);F:\Additional Program Files\Microsoft DirectX SDK %28June 2010%29\Lib\x64</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>F:\Additional Program Files\Microsoft DirectX SDK %28June 2010%29\Include;$(IncludePath)</IncludePath>
-    <LibraryPath>F:\Additional Program Files\Microsoft DirectX SDK %28June 2010%29\Lib\x64;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(IncludePath);F:\Additional Program Files\Microsoft DirectX SDK %28June 2010%29\Include</IncludePath>
+    <LibraryPath>$(LibraryPath);F:\Additional Program Files\Microsoft DirectX SDK %28June 2010%29\Lib\x64</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -147,11 +147,13 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="DDSTextureLoader.cpp" />
     <ClCompile Include="Scratch.cpp" />
     <ClCompile Include="unityInterfaceFunctions.cpp" />
     <ClCompile Include="utils.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="DDSTextureLoader.h" />
     <ClInclude Include="unityInterfaceFunctions.h" />
     <ClInclude Include="utils.h" />
   </ItemGroup>

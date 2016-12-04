@@ -32,7 +32,7 @@ __device__ T clip(const T& n, const T& lower, const T& upper) {
 // --------------------------------------------------------------------------
 
 // Varies brightness of output pixel based on parameters
-__global__ void CudaKernelTextureCubeBrightness(char *inputSurface, char *outputSurface, int width, int height, size_t pitch, int face, float t)
+__global__ void CudaKernelTextureCubeBrightness(char *inputSurface, char *outputSurface, int width, int height, size_t pitch, int face, float t, float brightnessIntervalPeriod)
 {
 	unsigned char *inputPixel;
 	unsigned char *outputPixel;
@@ -52,8 +52,7 @@ __global__ void CudaKernelTextureCubeBrightness(char *inputSurface, char *output
 
 	// Set brightness multiplier
 	float brightnessMultipierA = 3;
-	int brightnessMultiplierPeriod = 5;
-	float brightnessMultiplierK = 2 * PI / brightnessMultiplierPeriod;
+	float brightnessMultiplierK = 2 * PI / brightnessIntervalPeriod;
 
 	float brightnessMultiplier = 1 + brightnessMultipierA * sin(brightnessMultiplierK * t);
 
@@ -62,6 +61,13 @@ __global__ void CudaKernelTextureCubeBrightness(char *inputSurface, char *output
 	outputPixel[1] = clip((int)(inputPixel[1] * brightnessMultiplier), 0, 255);
 	outputPixel[2] = clip((int)(inputPixel[2] * brightnessMultiplier), 0, 255);
 	outputPixel[3] = inputPixel[3];
+
+	// Debug - set equal to input
+	//outputPixel[0] = inputPixel[0];
+	//outputPixel[1] = inputPixel[1];
+	//outputPixel[2] = inputPixel[2];
+	//outputPixel[3] = inputPixel[3];
+
 }
 
 
@@ -71,7 +77,7 @@ __global__ void CudaKernelTextureCubeBrightness(char *inputSurface, char *output
 
 // Sets up grid / blocks, launches kernel
 extern "C"
-void CudaWrapperTextureCubeBrightness(void *inputSurface, void *outputSurface, int width, int height, size_t pitch, int face, float t)
+void CudaWrapperTextureCubeBrightness(void *inputSurface, void *outputSurface, int width, int height, size_t pitch, int face, float t, float brightnessIntervalPeriod)
 {
 	cudaError_t error = cudaSuccess;
 
@@ -79,7 +85,7 @@ void CudaWrapperTextureCubeBrightness(void *inputSurface, void *outputSurface, i
 	dim3 Dg = dim3((width + Db.x - 1) / Db.x, (height + Db.y - 1) / Db.y);
 
 	CudaKernelTextureCubeBrightness <<<Dg, Db >>>((char *)inputSurface, (char *)outputSurface, 
-												    width, height, pitch, face, t);
+												    width, height, pitch, face, t, brightnessIntervalPeriod);
 	ProcessCudaError("cuda_kernel_texture_cube() failed to launch error: ");
 }
 

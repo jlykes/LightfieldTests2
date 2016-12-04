@@ -91,6 +91,7 @@ static std::string s_UnityStreamingAssetsPath;
 
 // Textures
 struct TextureCube g_texture_cube_left, g_texture_cube_right;
+float g_brightnessPeriodInterval;
 
 // Debugging
 bool consoleLogInitiated = false;
@@ -113,6 +114,8 @@ static void UNITY_INTERFACE_API OnRenderEvent(int eventID);
 static void SetTextureFromUnityImplementation(void* texturePtr, std::string eyeName);
 static void DoRendering(std::string eyeName);
 void RunTextureFillingKernels(std::string eyeName);
+void AllocateInputCubemapFaces(struct TextureCube * g_texture_cube, std::string eyeName);
+void LoadTextureIntoPointers(void* texturePtr, struct TextureCube * g_texture_cube, std::string eyeName);
 
 // Helpers (that can't go in Utils)
 struct TextureCube * GetTextureCubeForEye(std::string eyeName);
@@ -122,5 +125,5 @@ extern "C"
 {
 	void CudaWrapperHelloWorld();
 	void CudaWrapperTextureCubeStrobelight(void *surface, int width, int height, size_t pitch, int face, float t);
-	void CudaWrapperTextureCubeBrightness(void *inputSurface, void *outputSurface, int width, int height, size_t pitch, int face, float t);
+	void CudaWrapperTextureCubeBrightness(void *inputSurface, void *outputSurface, int width, int height, size_t pitch, int face, float t, float brightnessIntervalPeriod);
 }
